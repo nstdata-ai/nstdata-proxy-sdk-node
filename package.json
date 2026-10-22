@@ -1,0 +1,16 @@
+{
+  "name": "@nstdata-ai/proxy",
+  "version": "1.0.0",
+  "description": "Node.js client for Nstdata proxy generation and customer channel APIs",
+  "type": "module",
+  "exports": { ".": { "types": "./src/index.d.ts", "import": "./src/index.js" } },
+  "files": ["src", "README.md", "README_zh.md", "LICENSE", "CHANGELOG.md", "CONTRIBUTING.md"],
+  "engines": { "node": "^22.18.0 || ^24.0.0" },
+  "license": "MIT",
+  "scripts": {
+    "test": "node --test test/*.test.mjs",
+    "typecheck": "tsc --noEmit --strict --module nodenext --target es2022 test/types.ts",
+    "check:package": "node scripts/check-package.mjs"
+  },
+  "devDependencies": { "@types/node": "22.18.0", "typescript": "5.9.3" }
+}
