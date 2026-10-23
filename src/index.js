@@ -30,7 +30,7 @@ function fields(value, allowed, code = 'INVALID_ARGUMENT') {
     if (!object(value) || Object.keys(value).some(key => !allowed.includes(key))) fail(code);
 }
 function text(value) {
-    return typeof value === 'string' && value.trim().length > 0 && !/[\p{Cc}\p{Cf}]/u.test(value);
+    return typeof value === 'string' && value.isWellFormed() && value.trim().length > 0 && !/[\p{Cc}\p{Cf}]/u.test(value);
 }
 function integer(value, min = 1, max = Number.MAX_SAFE_INTEGER) {
     return Number.isSafeInteger(value) && value >= min && value <= max;

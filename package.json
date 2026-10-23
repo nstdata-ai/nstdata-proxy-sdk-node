@@ -4,7 +4,7 @@
   "description": "Node.js client for Nstdata proxy generation and customer channel APIs",
   "type": "module",
   "exports": { ".": { "types": "./src/index.d.ts", "import": "./src/index.js" } },
-  "files": ["src", "README.md", "README_zh.md", "LICENSE", "CHANGELOG.md", "CONTRIBUTING.md"],
+  "files": ["src", "docs", "README.md", "README_zh.md", "LICENSE", "CHANGELOG.md", "CONTRIBUTING.md", "SECURITY.md"],
   "engines": { "node": "^22.18.0 || ^24.0.0" },
   "license": "MIT",
   "scripts": {

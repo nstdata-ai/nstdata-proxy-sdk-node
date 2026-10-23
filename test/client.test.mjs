@@ -257,3 +257,21 @@ test('optional fields and empty editable lists are serialized without invented d
     await f.client.updateChannel('sample-channel', { ...edit, whitelist: [], senses: [] });
     assert.deepEqual(JSON.parse(f.requests[1].body), { ...edit, whitelist: [], senses: [] });
 });
+
+test('malformed Unicode text is rejected without changing a query or submitting data', async t => {
+    const f = await fixture(t, (_req, res) => json(res, []));
+    for (const call of [
+        () => f.client.listChannels({ s: '\ud800' }),
+        () => f.client.generateProxies({ ...generation, country: '\udfff' }),
+        () => f.client.createChannel({ ...created, name: 'sample\ud800' }),
+    ]) await assert.rejects(call(), errorCode('INVALID_ARGUMENT'));
+    assert.equal(f.requests.length, 0);
+});
+
+test('well-formed Unicode query text is preserved', async t => {
+    const f = await fixture(t, (_req, res) => json(res, []));
+    const search = '渠道 😀';
+    await f.client.listChannels({ s: search });
+    assert.equal(new URL(f.requests[0].url, f.baseUrl).searchParams.get('s'), search);
+    assert.equal(f.requests.length, 1);
+});
