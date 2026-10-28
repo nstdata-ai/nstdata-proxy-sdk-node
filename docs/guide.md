@@ -19,7 +19,7 @@ Empty lists and boolean false are valid results, not fabricated successes or exc
 
 ## Proxy generation
 
-Use an existing channel ID and permitted region/gateway values from your Nstdata account. The snippets below reuse `client` from the quick start; run only the operation you intend. Set `NSTDATA_CHANNEL_ID` locally when needed.
+Use an existing channel ID and permitted region/gateway values from your Nstdata account. The snippets below replace the `listChannels` call and its output statement inside the quick start's `try` block. Run one operation at a time. Add any required `NSTDATA_CHANNEL_ID` or other settings to the same `.env` file.
 
 ```js
 const generated = await client.generateProxies({
@@ -48,6 +48,12 @@ Generation can create new sessions even though it uses GET. Save returned connec
 The service defaults to 50 items and descending creation time. No total count or next-page cursor is returned. Page lengths alone do not guarantee a stable snapshot while channels change; choose an explicit page limit when iterating.
 
 `getChannel(id)` returns an array rather than a single object. An empty array means no matching active channel. Records may include passwords and extra fields; use the exported `Channel` type and select what the application needs.
+
+```js
+const channels = await client.getChannel(process.env.NSTDATA_CHANNEL_ID);
+console.log({ matchingChannels: channels.length });
+```
+
 
 ## Channel management
 
@@ -94,7 +100,7 @@ console.log({ deleted });
 | Constructor option | Default / meaning |
 |---|---|
 | `apiKey` | Required personal/team key, sent only in `x-api-key`; service or browser-session credentials are rejected. |
-| `baseUrl` | `https://api.nstdata.io`; HTTPS origin with no credentials/path/query/fragment. HTTP is permitted only on loopback. |
+| `baseUrl` | Optional API origin; defaults to `https://api.nstdata.io`. Override only for an authorized alternative endpoint or local testing. This is not a proxy gateway address. HTTPS is required except on loopback; credentials/path/query/fragment are not allowed. |
 | `teamId` | Optional `x-team-id` context. |
 | `timeoutMs` |30000 ms; positive integer up to 2147483647, covering response reading. |
 | `maxResponseBytes` |1048576; positive safe-integer cap on decoded response bytes. |

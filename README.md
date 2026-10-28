@@ -18,24 +18,26 @@ Generate Nstdata proxy connections and manage customer channels. ESM with TypeSc
 Requires Node.js 22.18+ within 22.x, or Node.js 24.x.
 
 ```sh
-npm install @nstdata-ai/proxy@1.0.0
+npm install @nstdata-ai/proxy
 ```
-
-`1.0.0` is not published yet. Local installation and development checks are in [Contributing](CONTRIBUTING.md).
 
 ## Quick start
 
-Set `NSTDATA_API_TOKEN` to an authorized personal or team API key; teamized accounts require a team key. This example reads one channel-list page.
+Get an authorized personal or team API key from the [Nstdata dashboard](https://app.nstdata.io/); accounts using teams require a team key. Save it in a local `.env` file:
+
+```dotenv
+NSTDATA_API_TOKEN=your-api-key
+```
+
+Save the following as `quickstart.mjs`. It reads one channel-list page and prints only its length.
 
 ```js
 import { ProxyClient, ProxyAPIError } from '@nstdata-ai/proxy';
 
-const client = new ProxyClient({
-    apiKey: process.env.NSTDATA_API_TOKEN,
-    baseUrl: process.env.NSTDATA_API_BASE_URL,
-});
-
 try {
+    const client = new ProxyClient({
+        apiKey: process.env.NSTDATA_API_TOKEN,
+    });
     const channels = await client.listChannels({ page: 1, pageSize: 10 });
     console.log({ channelsOnPage: channels.length });
 } catch (error) {
@@ -44,6 +46,14 @@ try {
     process.exitCode = 1;
 }
 ```
+
+Run with the `.env` file in the same directory:
+
+```sh
+node --env-file=.env quickstart.mjs
+```
+
+Expected output: `{ channelsOnPage: number }`; an empty channel list has length `0`. Configuration or request failures print an error code and exit with a nonzero status.
 
 Channel records and proxy URLs can contain passwords. Inspect only fields your application needs; do not print complete results. For inputs, results and operation effects, see the [usage guide](docs/guide.md).
 

@@ -18,24 +18,26 @@
 需要 Node.js 22 系列的22.18+，或 Node.js 24 系列。
 
 ```sh
-npm install @nstdata-ai/proxy@1.0.0
+npm install @nstdata-ai/proxy
 ```
-
-`1.0.0` 尚未发布。本地安装和开发检查见[贡献说明](CONTRIBUTING.md)。
 
 ## 快速开始
 
-将获准使用的个人或团队 API key 设置为 `NSTDATA_API_TOKEN`；已团队化的账号须使用团队 key。此例读取一页渠道列表。
+从 [Nstdata 控制台](https://app.nstdata.io/) 获取获准使用的个人或团队 API key；团队账号须使用团队 key。将 Key 保存到本地 `.env` 文件：
+
+```dotenv
+NSTDATA_API_TOKEN=your-api-key
+```
+
+将以下程序保存为 `quickstart.mjs`。它读取一页渠道列表，只输出本页数量。
 
 ```js
 import { ProxyClient, ProxyAPIError } from '@nstdata-ai/proxy';
 
-const client = new ProxyClient({
-    apiKey: process.env.NSTDATA_API_TOKEN,
-    baseUrl: process.env.NSTDATA_API_BASE_URL,
-});
-
 try {
+    const client = new ProxyClient({
+        apiKey: process.env.NSTDATA_API_TOKEN,
+    });
     const channels = await client.listChannels({ page: 1, pageSize: 10 });
     console.log({ channelsOnPage: channels.length });
 } catch (error) {
@@ -44,6 +46,14 @@ try {
     process.exitCode = 1;
 }
 ```
+
+使用同一目录中的 `.env` 运行：
+
+```sh
+node --env-file=.env quickstart.mjs
+```
+
+预期输出 `{ channelsOnPage: 数量 }`；空渠道列表的数量为 `0`。配置或请求失败时输出错误码并以非零状态退出。
 
 渠道记录和代理 URL 可能包含密码。只读取应用所需字段，不打印完整结果。各项功能的参数、返回值和操作影响见[使用指南](docs/guide_zh.md)。
 

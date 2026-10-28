@@ -1,6 +1,6 @@
 # Changelog
 
-## 1.0.0 — Unreleased
+## 1.0.0
 
 - Customer proxy generation and channel list, detail, create, update and delete methods.
 - Bounded response reading, request deadlines, cancellation and sanitized errors; no automatic retries or redirects.

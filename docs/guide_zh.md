@@ -19,7 +19,7 @@
 
 ## 代理出号
 
-使用现有渠道 ID，以及账号支持的地区／网关值。以下片段沿用快速开始的 `client`，只单独执行你要进行的操作；需要渠道 ID 时在本地设置 `NSTDATA_CHANNEL_ID`。
+使用现有渠道 ID，以及账号支持的地区／网关值。以下片段替换快速开始 `try` 块中的 `listChannels` 调用及其输出语句，每次只执行一项操作；需要的 `NSTDATA_CHANNEL_ID` 等变量添加到同一 `.env` 文件。
 
 ```js
 const generated = await client.generateProxies({
@@ -48,6 +48,12 @@ console.log({ count: generated.count });
 服务默认每页50条、按创建时间倒序，不返回总数或下一游标。渠道变更时，页长度不能保证读取到一致快照；自行遍历时须设置明确页数上限。
 
 `getChannel(id)` 返回数组，不是单个对象；空数组表示没有匹配的活跃渠道。记录可能含密码和额外字段，使用导出的 `Channel` 类型并只选择应用需要的字段。
+
+```js
+const channels = await client.getChannel(process.env.NSTDATA_CHANNEL_ID);
+console.log({ matchingChannels: channels.length });
+```
+
 
 ## 渠道管理
 
@@ -94,7 +100,7 @@ console.log({ deleted });
 | 构造参数 | 默认值／含义 |
 |---|---|
 | `apiKey` | 必填个人／团队 key，仅通过 `x-api-key` 发送；拒绝服务或浏览器会话凭据。 |
-| `baseUrl` | `https://api.nstdata.io`；不含凭据／路径／查询／片段的 HTTPS origin，仅回环测试允许 HTTP。 |
+| `baseUrl` | 可选 API 服务地址，默认 `https://api.nstdata.io`。仅使用获准的替代接口或本地测试时覆盖；不是代理网关地址。须为不含凭据／路径／查询／片段的 HTTPS origin，仅回环测试允许 HTTP。 |
 | `teamId` | 可选 `x-team-id` 上下文。 |
 | `timeoutMs` |30000；正整数且不超过2147483647，覆盖正文读取。 |
 | `maxResponseBytes` |1048576；解码响应字节数的正安全整数上限。 |
