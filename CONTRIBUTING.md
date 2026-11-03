@@ -15,10 +15,10 @@ Build the archive after checks pass, then install it from a separate application
 
 ```sh
 npm pack
-npm install /path/to/nstdata-proxy-sdk-node/nstdata-ai-proxy-1.0.0.tgz
+npm install /path/to/nstdata-proxy-sdk-node/nstdata-ai-proxy-1.1.0.tgz
 ```
 
-Package checks use empty npm caches to verify the exact tarball and default npm installation through a loopback registry. They run installed-client regressions, compile TypeScript declarations, and execute the documented Node.js command and guide operations against loopback API fixtures. Markdown checks cover all public documents; package checks execute the quick start and guide operations. Pass a previously built tarball path after `npm run check:package --` to validate that exact archive. Checks verify bilingual programs, documentation links and package bytes; they do not prove public npm availability or deployed API compatibility.
+Package checks use empty npm caches to verify the exact tarball and default npm installation through a loopback registry. They verify the standalone npx/global CLI and run installed-client/CLI regressions, compile TypeScript declarations, and execute the documented Node.js command and guide operations against loopback API fixtures. Markdown checks cover all public documents; package checks execute the quick start and guide operations. Pass a previously built tarball path after `npm run check:package --` to validate that exact archive. Checks verify bilingual programs, documentation links and package bytes; they do not prove public npm availability or deployed API compatibility.
 
 Keep customer, reseller and Dashboard authentication separate. Route/payload changes need source-backed contracts and public-client regressions. Preserve cancellation, response limits, error redaction and no-retry behavior for uncertain outcomes. Keep runtime and declarations aligned and update both language guides and the changelog.
 

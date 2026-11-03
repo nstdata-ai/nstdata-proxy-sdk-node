@@ -1,28 +1,10 @@
 import { isIP } from 'node:net';
+import { ProxyAPIError } from './errors.js';
+import { ProxySetup } from './setup.js';
+export { ProxyAPIError } from './errors.js';
 
 const types = ['residential', 'residential_lite', 'ipv6', 'datacenter', 'mobile', 'isp'];
 const regions = ['country', 'state', 'city'];
-const messages = {
-    INVALID_CONFIG: 'Invalid Proxy client configuration.',
-    INVALID_ARGUMENT: 'Invalid Proxy request arguments.',
-    TIMEOUT: 'Proxy API request timed out; a submitted operation may still complete.',
-    ABORTED: 'Local waiting was cancelled; a submitted operation may still complete.',
-    NETWORK_ERROR: 'Proxy API connection failed; a submitted operation may still complete.',
-    HTTP_ERROR: 'Proxy API returned an unsuccessful HTTP status.',
-    API_ERROR: 'Proxy API reported an application error.',
-    INVALID_RESPONSE: 'Proxy API returned an invalid response.',
-    RESPONSE_TOO_LARGE: 'Proxy API response exceeded the configured byte limit.',
-};
-
-export class ProxyAPIError extends Error {
-    constructor(code, { statusCode, applicationCode } = {}) {
-        super(messages[code] ?? messages.INVALID_RESPONSE);
-        this.name = 'ProxyAPIError';
-        this.code = code;
-        if (statusCode !== undefined) this.statusCode = statusCode;
-        if (applicationCode !== undefined) this.applicationCode = applicationCode;
-    }
-}
 
 function fail(code = 'INVALID_ARGUMENT') { throw new ProxyAPIError(code); }
 function object(value) { return value !== null && typeof value === 'object' && !Array.isArray(value); }
@@ -70,6 +52,7 @@ export class ProxyClient {
     #teamId;
     #timeoutMs;
     #maxResponseBytes;
+    #setup = new ProxySetup(this);
 
     constructor(config) {
         fields(config, ['apiKey', 'baseUrl', 'teamId', 'timeoutMs', 'maxResponseBytes'], 'INVALID_CONFIG');
@@ -104,6 +87,35 @@ export class ProxyClient {
         return this.#request('GET', '/proxies', input, undefined, options, value =>
             object(value) && Array.isArray(value.proxies) && value.proxies.every(text) &&
             integer(value.count, 0) && value.count === value.proxies.length);
+    }
+
+    async prepareProxy(input, options) { return this.#setup.prepare(input, options); }
+    async getProxy(input, options) { return this.#setup.get(input, options); }
+    async getProxies(input, options) { return this.#setup.getMany(input, options); }
+
+    async getAccountInfo(options) {
+        return this.#request('GET', '/user/info', undefined, undefined, options, value =>
+            object(value) && Number.isFinite(value.balance) &&
+            (value.email === undefined || text(value.email)) &&
+            (value.referralBalance === undefined || Number.isFinite(value.referralBalance)));
+    }
+
+    async listPlans(query = {}, options) {
+        fields(query, ['type']);
+        if (query.type !== undefined && !types.includes(query.type)) fail();
+        return this.#request('GET', '/plan/info', query, undefined, options, value =>
+            Array.isArray(value) && value.every(plan => object(plan) && text(plan.name) && text(plan.type) &&
+                strings(plan.protocols) && Number.isFinite(plan.priceGB) && plan.priceGB >= 0 && strings(plan.supports) &&
+                (plan.label === undefined || typeof plan.label === 'string')));
+    }
+
+    async listCountries(query, options) {
+        fields(query, ['type']);
+        if (!types.includes(query.type)) fail();
+        return this.#request('GET', '/region/country', query, undefined, options, value =>
+            Array.isArray(value) && value.every(country => object(country) && text(country.value) &&
+                (country.label === undefined || typeof country.label === 'string') &&
+                (country.regionId === undefined || typeof country.regionId === 'string' || Number.isFinite(country.regionId))));
     }
 
     async listChannels(query = {}, options) {

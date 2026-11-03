@@ -4,13 +4,14 @@ import { createHash } from 'node:crypto';
 import { once } from 'node:events';
 import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import http from 'node:http';
-import { join } from 'node:path';
+import { join, dirname } from 'node:path';
 import { promisify } from 'node:util';
 import { codeBlocks, shellCommands } from './documentation.mjs';
 
 const execute = promisify(execFile);
-const listOperation = '    const channels = await client.listChannels({ page: 1, pageSize: 10 });\n' +
-    '    console.log({ channelsOnPage: channels.length });';
+const setupOperation = '    const proxy = await client.getProxy();\n' +
+    '    // Pass proxy.url to your proxy-capable HTTP client; it contains credentials.\n' +
+    '    console.log({ country: proxy.country, protocol: proxy.protocol });';
 
 export async function checkDocumentedCommands({ root, temp, archive, manifest, files, environment }) {
     const registryRequests = [];
@@ -40,6 +41,24 @@ export async function checkDocumentedCommands({ root, temp, archive, manifest, f
         requests.push({ method: request.method, path: url.pathname,
             query: Object.fromEntries(url.searchParams), body: Buffer.concat(body).toString() });
         assert.equal(request.headers['x-api-key'], 'fixture-api-key');
+        if (operation === 'setup') {
+            if (mode === 'http') { response.writeHead(503); response.end('fixture-private-body'); return; }
+            if (mode === 'api') { response.end(JSON.stringify({ code: 403, err: true, data: null })); return; }
+            assert.equal(request.method, 'GET');
+            let data;
+            if (url.pathname.endsWith('/user/info')) data = { balance: 20 };
+            else if (url.pathname.endsWith('/plan/info')) data = [{ name: 'sample-zone',
+                type: 'residential_lite', priceGB: 2, protocols: ['http'], supports: ['country'] }];
+            else if (url.pathname.endsWith('/region/country')) data = [{ value: 'US' }];
+            else if (url.pathname.endsWith('/channels')) data = [{ channelId: 'sample-channel',
+                name: 'nstdata-sdk-default', type: 'residential_lite', zoneName: 'sample-zone', status: 1 }];
+            else if (url.pathname.endsWith('/proxies')) {
+                const count = Number(url.searchParams.get('count'));
+                data = mode === 'empty' ? { proxies: [], count: 0 } : {
+                    proxies: Array.from({ length: count }, () => 'http://fixture:private-password@gateway.invalid:8000'), count };
+            } else assert.fail('Unexpected setup route');
+            response.end(JSON.stringify({ code: 200, err: false, data })); return;
+        }
         const expected = {
             list: ['GET', '/api/v1/api/channels'], generate: ['GET', '/api/v1/api/proxies'],
             get: ['GET', '/api/v1/api/channel/sample-channel'], create: ['POST', '/api/v1/api/channel'],
@@ -89,7 +108,11 @@ export async function checkDocumentedCommands({ root, temp, archive, manifest, f
             const readme = readFileSync(join(root, language === 'en' ? 'README.md' : 'README_zh.md'), 'utf8');
             const originalCommands = shellCommands(readme);
             assert.deepEqual(originalCommands, [
-                ['npm', 'install', manifest.name], ['node', '--env-file=.env', 'quickstart.mjs'],
+                ['npm', 'install', manifest.name],
+                ['npx', '--yes', '--package=' + manifest.name, 'nstdata-proxy'],
+                ['npx', '--yes', '--package=' + manifest.name, 'nstdata-proxy', '--env', '.env',
+                    '--yes', '--output', 'proxies.json'],
+                ['node', '--env-file=.env', 'quickstart.mjs'],
             ]);
             await execute(process.execPath, [process.env.npm_execpath, ...originalCommands[0].slice(1)], {
                 cwd: application, env: localEnv, timeout: 30000,
@@ -104,7 +127,7 @@ export async function checkDocumentedCommands({ root, temp, archive, manifest, f
             assert.equal(programBlocks.length, 1); assert.equal(settings.length, 1);
             assert.equal(settings[0].text, 'NSTDATA_API_TOKEN=your-api-key');
             const program = programBlocks[0].text;
-            assert.ok(program.includes(listOperation));
+            assert.ok(program.includes(setupOperation));
             writeFileSync(join(application, 'quickstart.mjs'), program);
             // Exercise the default API origin without adding test configuration to the examples.
             const networkFixture = join(application, 'api-fixture.cjs');
@@ -121,15 +144,17 @@ globalThis.fetch = (input, options) => {
             };
             const run = async (nextOperation, nextMode, filename, expected, errorCode) => {
                 operation = nextOperation; mode = nextMode;
-                const values = {
-                    NSTDATA_API_TOKEN: 'fixture-api-key',
-                    NSTDATA_CHANNEL_ID: 'sample-channel', NSTDATA_CHANNEL_PASSWORD: 'FixturePass9',
-                    NSTDATA_ZONE_NAME: 'sample-zone',
-                };
+                const values = { NSTDATA_API_TOKEN: 'fixture-api-key' };
+                if (['generate', 'get', 'update', 'delete'].includes(nextOperation))
+                    values.NSTDATA_CHANNEL_ID = 'sample-channel';
+                if (['create', 'update'].includes(nextOperation)) values.NSTDATA_CHANNEL_PASSWORD = 'FixturePass9';
+                if (nextOperation === 'create') values.NSTDATA_ZONE_NAME = 'sample-zone';
                 if (mode === 'no-key') delete values.NSTDATA_API_TOKEN;
                 if (mode === 'no-channel') delete values.NSTDATA_CHANNEL_ID;
                 if (mode === 'no-password') delete values.NSTDATA_CHANNEL_PASSWORD;
                 if (mode === 'no-zone') delete values.NSTDATA_ZONE_NAME;
+                if (nextOperation === 'setup') assert.deepEqual(Object.keys(values),
+                    mode === 'no-key' ? [] : ['NSTDATA_API_TOKEN'], 'Quick start must receive only its documented key');
                 const dotenv = settings[0].text.replace('your-api-key', values.NSTDATA_API_TOKEN ?? '');
                 const extra = Object.entries(values).filter(([key]) => key !== 'NSTDATA_API_TOKEN')
                     .map(([key, value]) => `${key}=${value}`).join('\n');
@@ -137,7 +162,7 @@ globalThis.fetch = (input, options) => {
                 const before = requests.length;
                 let result, exitCode = 0;
                 try {
-                    const args = originalCommands[1].slice(1)
+                    const args = originalCommands[3].slice(1)
                         .map(value => value === 'quickstart.mjs' ? filename : value);
                     result = await execute(process.execPath, args, {
                         cwd: application, env: programEnv, timeout: 10000,
@@ -145,7 +170,8 @@ globalThis.fetch = (input, options) => {
                 } catch (error) { result = error; exitCode = error.code; }
                 assert.equal(exitCode, errorCode ? 1 : 0, result.stderr);
                 const noRequest = mode.startsWith('no-');
-                assert.equal(requests.length - before, noRequest ? 0 : 1);
+                const expectedRequests = nextOperation === 'setup' && ['normal', 'empty'].includes(nextMode) ? 5 : 1;
+                assert.equal(requests.length - before, noRequest ? 0 : expectedRequests);
                 assert.doesNotMatch(result.stdout + result.stderr,
                     /fixture-api-key|FixturePass9|private-password|fixture-private-body|sample-channel/);
                 if (errorCode) {
@@ -156,10 +182,42 @@ globalThis.fetch = (input, options) => {
                 scenarios++; commands++;
             };
             for (const [variant, expected, errorCode] of [
-                ['normal', '{ channelsOnPage: 1 }'], ['empty', '{ channelsOnPage: 0 }'],
+                ['normal', "{ country: 'US', protocol: 'http' }"], ['empty', '', 'NO_PROXY_GENERATED'],
                 ['api', '', 'API_ERROR'], ['http', '', 'HTTP_ERROR'], ['no-key', '', 'INVALID_CONFIG'],
-            ]) await run('list', variant, 'quickstart.mjs', expected, errorCode);
+            ]) await run('setup', variant, 'quickstart.mjs', expected, errorCode);
             nativePrograms++;
+            operation = 'setup'; mode = 'normal';
+            writeFileSync(join(application, '.env'), 'NSTDATA_API_TOKEN=fixture-api-key\n', { mode: 0o600 });
+            // Execute the documented npx commands from a directory with no package.json or node_modules.
+            const standalone = join(temp, 'standalone-' + language); mkdirSync(standalone);
+            writeFileSync(join(standalone, '.env'), 'NSTDATA_API_TOKEN=fixture-api-key\n', { mode: 0o600 });
+            const cliEnv = { ...programEnv, NSTDATA_API_BASE_URL: 'https://api.nstdata.io',
+                npm_config_cache: join(standalone, 'cache'), NPM_CONFIG_CACHE: join(standalone, 'cache') };
+            const beforeUnconfirmed = requests.length;
+            await assert.rejects(execute(process.execPath,
+                [join(dirname(process.env.npm_execpath), 'npx-cli.js'), ...originalCommands[1].slice(1)], {
+                    cwd: standalone, env: cliEnv, timeout: 30000,
+                }), error => error.code === 2 && error.stderr.includes('MISSING_API_KEY'));
+            assert.equal(requests.length, beforeUnconfirmed);
+            const batch = await execute(process.execPath,
+                [join(dirname(process.env.npm_execpath), 'npx-cli.js'), ...originalCommands[2].slice(1)], {
+                    cwd: standalone, env: cliEnv, timeout: 30000,
+                });
+            assert.equal(JSON.parse(batch.stdout).saved, true);
+            assert.doesNotMatch(batch.stdout + batch.stderr, /fixture-api-key|private-password/);
+            const exported = JSON.parse(readFileSync(join(standalone, 'proxies.json'), 'utf8'));
+            assert.equal(exported.proxies.length, 1);
+            assert.equal(exported.proxies[0], 'http://fixture:private-password@gateway.invalid:8000');
+            // A global installation must expose the same executable independently of any project.
+            const globalEnv = { ...cliEnv, npm_config_prefix: join(standalone, 'prefix') };
+            await execute(process.execPath, [process.env.npm_execpath, 'install', '--global', manifest.name], {
+                cwd: standalone, env: globalEnv, timeout: 30000,
+            });
+            const globalHelp = await execute(join(globalEnv.npm_config_prefix, 'bin', 'nstdata-proxy'), ['--help'], {
+                cwd: standalone, env: globalEnv, timeout: 10000,
+            });
+            assert.match(globalHelp.stdout, /Usage: nstdata-proxy/);
+            commands += 4;
             const guide = readFileSync(join(root, 'docs', language === 'en' ? 'guide.md' : 'guide_zh.md'), 'utf8');
             assert.deepEqual(shellCommands(guide), [], 'Guide fragments must not claim standalone commands');
             const fragments = codeBlocks(guide).filter(block => block.lang === 'js');
@@ -179,7 +237,7 @@ globalThis.fetch = (input, options) => {
             for (const [index, fragment] of fragments.entries()) {
                 const filename = 'operation-' + index + '.mjs';
                 const code = fragment.text.split('\n').map(line => '    ' + line).join('\n');
-                writeFileSync(join(application, filename), program.replace(listOperation, code));
+                writeFileSync(join(application, filename), program.replace(setupOperation, code));
                 const [method, cases] = variants[index];
                 for (const [variant, expected, errorCode] of cases) await run(method, variant, filename, expected, errorCode);
                 guideFragments++;
