@@ -32,6 +32,8 @@ try {
     assert.equal(lock.packages[''].version, manifest.version);
     assert.equal(lock.packages[''].name, manifest.name);
     assert.deepEqual(lock.packages[''].devDependencies, manifest.devDependencies);
+    assert.deepEqual(manifest.bin, { 'nstdata-proxy': 'src/cli.js' });
+    assert.deepEqual(lock.packages[''].bin, manifest.bin);
     assert.deepEqual(manifest.dependencies ?? {}, {});
     assert.deepEqual(manifest.peerDependencies ?? {}, {});
     assert.deepEqual(lock.packages[''].dependencies ?? {}, {});
@@ -47,7 +49,8 @@ try {
         assert.deepEqual(shellCommands(readFileSync(join(root, file), 'utf8'))[0], ['npm', 'install', manifest.name]);
     }
     assert.ok(readFileSync(join(root, 'CHANGELOG.md'), 'utf8').split('\n').includes(`## ${manifest.version}`));
-    const files = ['package.json', 'src/index.js', 'src/index.d.ts', 'README.md', 'README_zh.md', 'LICENSE',
+    const files = ['package.json', 'src/index.js', 'src/index.d.ts', 'src/errors.js', 'src/setup.js', 'src/cli.js',
+        'README.md', 'README_zh.md', 'LICENSE',
         'CHANGELOG.md', 'CONTRIBUTING.md', 'SECURITY.md', 'docs/guide.md', 'docs/guide_zh.md'].sort();
     let archive;
     if (process.argv[2]) archive = resolve(process.argv[2]);
@@ -101,8 +104,10 @@ net.Socket.prototype.connect = function (...args) {
 };\n`);
     const testEnv = { ...env, NODE_OPTIONS: `--require=${JSON.stringify(guard)}` };
     mkdirSync(join(temp, 'test'));
-    copyFileSync(join(root, 'test/client.test.mjs'), join(temp, 'test/client.test.mjs'));
-    execFileSync(process.execPath, ['--test', '--test-reporter=tap', 'test/client.test.mjs'], {
+    for (const file of ['client.test.mjs', 'quickstart.test.mjs', 'cli.test.mjs', 'proxy-fixture.mjs'])
+        copyFileSync(join(root, 'test', file), join(temp, 'test', file));
+    execFileSync(process.execPath, ['--test', '--test-reporter=tap', 'test/client.test.mjs',
+        'test/quickstart.test.mjs', 'test/cli.test.mjs'], {
         cwd: temp, env: { ...testEnv, NSTDATA_PROXY_INSTALLED: '1' }, timeout: 30000, stdio: 'inherit',
     });
     writeFileSync(join(temp, 'consumer.mts'), readFileSync(join(root, 'test/types.ts'), 'utf8').replace('../src/index.js', '@nstdata-ai/proxy'));

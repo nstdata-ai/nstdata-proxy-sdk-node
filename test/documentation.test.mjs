@@ -35,7 +35,11 @@ test('bilingual quick starts specify matching programs, dotenv and exact runnabl
         fs.readFileSync(new URL('../' + file, import.meta.url), 'utf8'));
     assert.deepEqual(...readmes.map(shellCommands));
     assert.deepEqual(shellCommands(readmes[0]), [
-        ['npm', 'install', '@nstdata-ai/proxy'], ['node', '--env-file=.env', 'quickstart.mjs'],
+        ['npm', 'install', '@nstdata-ai/proxy'],
+        ['npx', '--yes', '--package=@nstdata-ai/proxy', 'nstdata-proxy'],
+        ['npx', '--yes', '--package=@nstdata-ai/proxy', 'nstdata-proxy', '--env', '.env',
+            '--yes', '--output', 'proxies.json'],
+        ['node', '--env-file=.env', 'quickstart.mjs'],
     ]);
     for (const language of ['js', 'dotenv']) {
         const blocks = readmes.map(text => codeBlocks(text).filter(block => block.lang === language));
