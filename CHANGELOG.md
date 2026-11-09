@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 1.1.1
 
 - Preserve HTTP and application error codes in CLI failures, with actionable hints for common account and service errors.
 
