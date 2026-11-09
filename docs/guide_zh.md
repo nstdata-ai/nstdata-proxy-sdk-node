@@ -27,7 +27,11 @@
 
 `NSTDATA_API_TOKEN` 来自环境变量或显式指定的环境文件；交互模式可隐藏输入，不回显、不保存。`NSTDATA_TEAM_ID` 是可选团队上下文。`NSTDATA_API_BASE_URL` 仅用于高级 API 服务地址覆盖，不是常规必填参数，也不是代理 URL；默认使用官方 API。
 
-默认 stdout 包含选择元数据和 `count`；`saved: true` 表示文件已保存。导出的 JSON 另含 `proxies` 数组。错误以 `{ error: { code, message } }` 写入 stderr。退出码：0 成功，1 API／准备失败，2 命令行输入需修正，130 中断；以 `ProxyAPIError` 返回的 API 配置错误使用退出码 1。
+默认 stdout 包含选择元数据和 `count`；`saved: true` 表示文件已保存。导出的 JSON 另含 `proxies` 数组。
+
+错误以 `{ error: { code, message } }` 写入 stderr，已知时附带 `statusCode` 和整数 `applicationCode`；常见认证、权限、限流和服务错误另有简短的 `hint`。
+
+退出码：0 成功，1 API／准备失败，2 命令行输入需修正，130 中断；以 `ProxyAPIError` 返回的 API 配置错误使用退出码 1。
 
 ## 便捷出号
 

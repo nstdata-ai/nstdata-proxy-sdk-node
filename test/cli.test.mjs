@@ -60,6 +60,55 @@ test('CLI previews are read-only and confirmed generation hides credentials by d
     assert.equal(f.state.requests.filter(row => row.path.endsWith('/proxies')).length, 1);
 });
 
+test('CLI preserves safe API diagnostics and stops after a failed account check', async t => {
+    for (const scenario of [
+        { status: 401, hint: /NSTDATA_API_TOKEN/ },
+        { status: 403, hint: /permissions/ },
+        { status: 429, hint: /rate limit/ },
+        { status: 503, hint: /service/ },
+        { status: 200, applicationCode: 403, expectedApplicationCode: 403, hint: /permissions/ },
+        { status: 201, applicationCode: 403, expectedApplicationCode: 403, hint: /permissions/ },
+        { status: 200, applicationCode: 10001, expectedApplicationCode: 10001 },
+        { status: 200, applicationCode: 1.5 },
+    ]) {
+        const f = await fixture(t, { handle(_req, res) {
+            res.writeHead(scenario.status, { 'content-type': 'application/json' });
+            res.end(JSON.stringify({ err: true, code: scenario.applicationCode ?? 403,
+                message: `${key} http://fixture:password@gateway.invalid/`, data: {} }));
+            return true;
+        } });
+        const result = await cli(['--yes', '--json'], { NSTDATA_API_TOKEN: key, NSTDATA_API_BASE_URL: f.baseUrl });
+        assert.equal(result.code, 1, result.stderr);
+        assert.equal(result.stdout, '');
+        const error = JSON.parse(result.stderr).error;
+        assert.equal(error.code, scenario.status < 300 ? 'API_ERROR' : 'HTTP_ERROR');
+        assert.equal(error.statusCode, scenario.status);
+        assert.equal(error.applicationCode, scenario.expectedApplicationCode);
+        if (scenario.hint) assert.match(error.hint, scenario.hint);
+        else assert.equal(error.hint, undefined);
+        assert.doesNotMatch(result.stderr, /quickstart-test-key|fixture:password|gateway\.invalid/);
+        assert.equal(f.state.requests.length, 1);
+        assert.ok(f.state.requests.every(row => row.method === 'GET' && row.path.endsWith('/user/info')));
+    }
+});
+
+test('CLI retains uncertain-creation diagnostics without suggesting or performing a retry', async t => {
+    const f = await fixture(t, { handle(req, res, url) {
+        if (req.method !== 'POST' || !url.pathname.endsWith('/channel')) return;
+        res.writeHead(503); res.end(key); return true;
+    } });
+    const result = await cli(['--yes', '--json'], { NSTDATA_API_TOKEN: key, NSTDATA_API_BASE_URL: f.baseUrl });
+    assert.equal(result.code, 1, result.stderr);
+    const error = JSON.parse(result.stderr).error;
+    assert.equal(error.code, 'CHANNEL_CREATION_UNCERTAIN');
+    assert.equal(error.statusCode, 503);
+    assert.equal(error.hint, undefined);
+    assert.match(error.message, /Check existing channels/);
+    assert.equal(f.state.requests.filter(row => row.method === 'POST').length, 1);
+    assert.equal(f.state.requests.filter(row => row.path.endsWith('/proxies')).length, 0);
+    assert.doesNotMatch(result.stdout + result.stderr, /quickstart-test-key/);
+});
+
 test('connection export is explicit, private, non-overwriting and separate from API-key storage', async t => {
     const dir = await mkdtemp(join(tmpdir(), 'nstdata-proxy-cli-'));
     t.after(() => rm(dir, { recursive: true, force: true }));
