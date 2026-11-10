@@ -27,7 +27,11 @@ File mode `0600` restricts access on POSIX systems; on Windows, use a directory 
 
 Set `NSTDATA_API_TOKEN` in the environment or an explicit env file; interactive mode can prompt for it without echoing or storing it. `NSTDATA_TEAM_ID` is optional team context. `NSTDATA_API_BASE_URL` is an advanced API origin override, not a normal setup requirement or a proxy URL. Defaults use the official API.
 
-Default stdout contains selection metadata and `count`; `saved: true` confirms file export. Exported JSON adds a `proxies` array. Errors go to stderr as `{ error: { code, message } }`. Exit codes: 0 success, 1 API/setup failure, 2 input/configuration assistance, 130 interruption. API configuration errors returned as `ProxyAPIError` use exit 1.
+Default stdout contains selection metadata and `count`; `saved: true` confirms file export. Exported JSON adds a `proxies` array.
+
+Errors go to stderr as `{ error: { code, message } }`, with `statusCode` and integer `applicationCode` when available. Common authentication, permission, rate-limit and service errors also include a short `hint`.
+
+Exit codes: 0 success, 1 API/setup failure, 2 input/configuration assistance, 130 interruption. API configuration errors returned as `ProxyAPIError` use exit 1.
 
 ## Convenient proxy setup
 

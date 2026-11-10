@@ -48,6 +48,20 @@ class InputError extends Error {
     constructor(code, message) { super(message); this.code = code; }
 }
 
+function apiDiagnostics(error) {
+    const details = {};
+    if (Number.isInteger(error.statusCode) && error.statusCode >= 100 && error.statusCode <= 599)
+        details.statusCode = error.statusCode;
+    if (Number.isSafeInteger(error.applicationCode)) details.applicationCode = error.applicationCode;
+    if (error.code !== 'HTTP_ERROR' && error.code !== 'API_ERROR') return details;
+    const status = error.code === 'API_ERROR' ? details.applicationCode : details.statusCode;
+    if (status === 401) details.hint = 'Check NSTDATA_API_TOKEN and its account or team context.';
+    else if (status === 403) details.hint = 'Check the API key permissions and account or team access.';
+    else if (status === 429) details.hint = 'The API rate limit was reached. Wait before starting another command.';
+    else if (status >= 500 && status <= 599) details.hint = 'The API returned a service error. Check its status before another command.';
+    return details;
+}
+
 async function question(prompt, hidden = false) {
     const output = hidden ? new Writable({ write(_chunk, _encoding, done) { done(); } }) : process.stderr;
     const reader = createInterface({ input: process.stdin, output, terminal: true });
@@ -188,6 +202,7 @@ main().catch(error => {
     if (controller.signal.aborted && !(error instanceof ProxyAPIError)) error = new ProxyAPIError('ABORTED');
     const known = error instanceof InputError || error instanceof ProxyAPIError;
     console.error(JSON.stringify({ error: { code: known ? error.code : 'INVALID_INPUT',
-        message: known ? error.message : 'Invalid command-line input. Run nstdata-proxy --help for usage.' } }));
+        message: known ? error.message : 'Invalid command-line input. Run nstdata-proxy --help for usage.',
+        ...(error instanceof ProxyAPIError ? apiDiagnostics(error) : {}) } }));
     process.exitCode = controller.signal.aborted || error.code === 'ABORTED' ? 130 : error instanceof ProxyAPIError ? 1 : 2;
 });
